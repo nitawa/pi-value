@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.5)
+project(pi)
+set(CMAKE_CXX_STANDARD 17)
+find_package(MPI REQUIRED)
+add_executable(pi.exe pi.cpp)
+target_link_libraries(pi.exe MPI::MPI_CXX)
