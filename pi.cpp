@@ -31,8 +31,16 @@ int main(int argc, char** argv) {
     return 1;
   } // end check for valid number of processes
 
-  unsigned int NEvts        = UINT_MAX; // Total points to generate
-  unsigned int NEvtsPerProc = NEvts / world_size;
+  unsigned int Evts[2];
+  if (world_rank == 0) {
+    std::cout << "Running with " << world_size << " processes." << std::endl;
+    Evts[0] = UINT_MAX; // 2^32 total events
+    Evts[1] = UINT_MAX / world_size; // 2^32 / p (p = 2k or 1)
+  }
+  // feed the number of events to all processes
+  MPI_Bcast(Evts, 2, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+  unsigned int NEvts = Evts[0];
+  unsigned int NEvtsPerProc = Evts[1];
   unsigned int hitsProc = 0;
 
   // one seed per process to ensure different sequences
@@ -50,24 +58,25 @@ int main(int argc, char** argv) {
   } // end for all events per process
 
   unsigned int hits = 0;
-    if (world_size > 1) {
-        // Parallel mode: Reduce all local_hits to Rank 0
-        MPI_Reduce(&hitsProc, &hits, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
-    } else {
-        // Sequential mode
-        hits = hitsProc;
-    }
+  if (world_size > 1) {
+    // Parallel mode: Reduce all local_hits to Rank 0
+    MPI_Reduce(&hitsProc, &hits, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  }
+  else {
+    // Sequential mode
+    hits = hitsProc;
+  }
 
-    if (world_rank == 0) {
-        // Pi = 4 * (hits / total_samples)
-        double piValue = 4.0 * (double)hits / (double)(NEvtsPerProc * world_size);
-        // Output the result with high precision
-        std::cout << "pi value: " << piValue << " - using " << world_size << " procs  and " << NEvts << " events" << std::endl;
-        std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
-        std::chrono::duration<double> elapsed_seconds = t1 - t0;
-        std::cout << "Elapsed time: " << elapsed_seconds.count() << " s" << std::endl;
-    }
+  if (world_rank == 0) {
+    // Pi = 4 * (hits / total_samples)
+    double piValue = 4.0 * (double)hits / (double)(NEvtsPerProc * world_size);
+    // Output the result with high precision
+    std::cout << "pi value: " << piValue << " - using " << world_size << " procs  and " << NEvts << " events" << std::endl;
+    std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+    std::chrono::duration<double> elapsed_seconds = t1 - t0;
+    std::cout << "Elapsed time: " << elapsed_seconds.count() << " s" << std::endl;
+  } // rank == 0
 
-    MPI_Finalize();
-    return 0;
+  MPI_Finalize();
+  return 0;
 }
